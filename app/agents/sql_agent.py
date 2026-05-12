@@ -1,6 +1,7 @@
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import PromptTemplate
 from dotenv import load_dotenv
+from agents.schema_agent import get_database_schema
 import os
 
 load_dotenv()
@@ -13,14 +14,20 @@ llm = ChatOpenAI(
 )
 
 prompt_template = PromptTemplate(
-    input_variables=["question"],
+    input_variables=["schema", "question"],
     template="""
 You are an expert SQL assistant.
 
-Convert the following user question into a correct MySQL SQL query.
+Below is the live database schema:
 
-Only return SQL query.
-Do not explain anything.
+{schema}
+
+Rules:
+- Use only tables and columns from the schema above
+- Generate correct SQLite SQL query
+- For stock/count related questions, prefer SUM(quantity) when appropriate
+- Return ONLY SQL query
+- Do not explain anything
 
 User Question:
 {question}
@@ -28,7 +35,13 @@ User Question:
 )
 
 def generate_sql(question):
-    prompt = prompt_template.format(question=question)
+    schema = get_database_schema()
+
+    prompt = prompt_template.format(
+        schema=schema,
+        question=question
+    )
+
     response = llm.invoke(prompt)
     return response.content.strip()
 

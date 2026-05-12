@@ -1,0 +1,10 @@
+openai
+langchain
+sqlalchemy
+mysql-connector-python
+python-dotenv
+pandas
+fastapi
+uvicorn
+pydantic
+pytest

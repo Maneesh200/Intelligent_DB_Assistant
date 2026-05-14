@@ -1,5 +1,6 @@
 import streamlit as st
 from database.db_connection import engine
+from agents.validation_agent import validate_sql_query
 import pandas as pd
 from agents.sql_agent import generate_sql
 from services.query_executor import execute_query
@@ -215,15 +216,41 @@ elif page == "Create Table":
     st.markdown('</div>', unsafe_allow_html=True)
 
 # -------------------- CSV UPLOAD --------------------
+# -------------------- CSV UPLOAD --------------------
 elif page == "Upload CSV":
+
     st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown('<div class="section-title">📂 Upload CSV File</div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="section-title">📂 Upload CSV File</div>',
+        unsafe_allow_html=True
+    )
 
-    uploaded_file = st.file_uploader("Upload your CSV", type=["csv"])
+    # Initialize session state
+    if "upload_counter" not in st.session_state:
+        st.session_state.upload_counter = 0
 
+    if "upload_success_message" not in st.session_state:
+        st.session_state.upload_success_message = ""
+
+    # Show success message after rerun
+    if st.session_state.upload_success_message:
+        st.success(
+            st.session_state.upload_success_message
+        )
+        st.session_state.upload_success_message = ""
+
+    # Dynamic key for file uploader
+    uploaded_file = st.file_uploader(
+        "Upload your CSV",
+        type=["csv"],
+        key=f"csv_uploader_{st.session_state.upload_counter}"
+    )
+
+    # Dynamic key for table name input
     table_name = st.text_input(
         "Table Name for CSV Data",
-        placeholder="Example: customers"
+        placeholder="Example: customers",
+        key=f"table_name_{st.session_state.upload_counter}"
     )
 
     if uploaded_file is not None:
@@ -235,16 +262,29 @@ elif page == "Upload CSV":
         )
 
     if st.button("Upload CSV to Database"):
-        if table_name:
+
+        if uploaded_file is not None and table_name:
+
             result = upload_csv_to_db(
                 uploaded_file,
                 table_name
             )
-            st.success(result)
-        else:
-            st.warning("Please provide a table name")
-    st.markdown('</div>', unsafe_allow_html=True)
 
+            # Save success message
+            st.session_state.upload_success_message = result
+
+            # Increase counter → resets BOTH fields
+            st.session_state.upload_counter += 1
+
+            st.rerun()
+
+        else:
+            st.warning(
+                "Please upload a CSV file and provide table name"
+            )
+
+    st.markdown('</div>', unsafe_allow_html=True)
+    
 # -------------------- AI CHAT --------------------
 elif page == "AI Chat":
 
@@ -263,28 +303,39 @@ elif page == "AI Chat":
                 chat_question
             )
 
-            raw_result = execute_query(
+
+            # Validate SQL before execution
+            is_valid, validation_message = validate_sql_query(
                 generated_sql
             )
 
-            final_result = generate_business_response(
-                chat_question,
-                raw_result
-            )
+            if not is_valid:
+                st.error(validation_message)
 
-            save_query_history(
-                chat_question,
-                generated_sql,
-                final_result
-            )
+            else:
+                raw_result = execute_query(
+                    generated_sql
+                )
 
-            st.success("Query processed successfully")
+                final_result = generate_business_response(
+                    chat_question,
+                    generated_sql,
+                    raw_result
+                )
 
-            st.markdown("### Generated SQL")
-            st.code(generated_sql)
+                save_query_history(
+                    chat_question,
+                    generated_sql,
+                    final_result
+                )
 
-            st.markdown("### Final Result")
-            st.info(final_result)
+                st.success("Query processed successfully")
+
+                st.markdown("### Generated SQL")
+                st.code(generated_sql)
+
+                st.markdown("### Final Result")
+                st.text(final_result)
         else:
             st.warning("Please enter a question")
         st.markdown('</div>', unsafe_allow_html=True)

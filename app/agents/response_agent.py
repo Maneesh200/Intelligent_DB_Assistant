@@ -18,46 +18,127 @@ def generate_business_response(
     query_result
 ):
     """
-    Convert SQL result into safe business response
-    without hallucination
+    SQL-Aware Universal Response Agent
+
+    Uses:
+    - SQL Query
+    - Actual DB Result
+
+    Handles:
+    - count
+    - sum
+    - average
+    - max / min
+    - difference calculations
+    - text results
+    - single row / single value
+    - multiple rows
+    - single-column multiple rows
+    - JOIN outputs
+    - reports
+    - NULL values
+    - empty results
     """
 
     try:
-        # Handle empty result
+        # -----------------------------------
+        # CASE 0: No Result
+        # -----------------------------------
         if not query_result:
             return "No matching data found."
 
-        # Extract first value safely
-        first_value = query_result[0][0]
+        sql_lower = sql_query.lower()
 
-        if first_value is None:
-            return "No relevant data found."
+        # -----------------------------------
+        # CASE 1: Single Row + Single Column
+        # Example:
+        # [(20000,)]
+        # [('John',)]
+        # -----------------------------------
+        if len(query_result) == 1 and len(query_result[0]) == 1:
 
-        # Numeric result formatting
-        if isinstance(first_value, (int, float)):
+            value = query_result[0][0]
 
-            if "salary" in question.lower():
-                return (
-                    f"The result for your query is ₹{first_value:,}."
-                )
+            if value is None:
+                return "No relevant data found."
 
-            elif "count" in question.lower() or "how many" in question.lower():
-                return (
-                    f"The total count is {first_value}."
-                )
+            # -----------------------------------
+            # Numeric Results
+            # -----------------------------------
+            if isinstance(value, (int, float)):
 
-            elif "sum" in question.lower() or "total" in question.lower():
-                return (
-                    f"The total value is {first_value:,}."
-                )
+                # COUNT Query
+                if "count(" in sql_lower:
+                    return f"The total count is {value}."
 
-            else:
-                return (
-                    f"The result is {first_value:,}."
-                )
+                # AVG Query
+                elif "avg(" in sql_lower:
+                    return f"The average value is {value:,}."
 
-        # Text result formatting
-        return f"The result is: {first_value}"
+                # SUM Query
+                elif "sum(" in sql_lower:
+                    return f"The total value is {value:,}."
+
+                # Difference Calculation
+                elif "max(" in sql_lower and "-" in sql_query:
+                    return f"The calculated difference is ₹{value:,}."
+
+                # Highest Value
+                elif "max(" in sql_lower:
+                    return f"The highest value is ₹{value:,}."
+
+                # Lowest Value
+                elif "min(" in sql_lower:
+                    return f"The lowest value is ₹{value:,}."
+
+                # Generic Numeric
+                else:
+                    return f"The result is {value:,}."
+
+            # -----------------------------------
+            # Text Result
+            # -----------------------------------
+            return f"The result is: {value}"
+
+        # -----------------------------------
+        # CASE 2: Multiple Rows + Single Column
+        # Example:
+        # [('Mary',), ('Alex',)]
+        # -----------------------------------
+        if all(len(row) == 1 for row in query_result):
+
+            values = [
+                str(row[0]) if row[0] is not None else "NULL"
+                for row in query_result
+            ]
+
+            final_output = "\n".join(values)
+
+            return (
+                f"Here are the matching records:\n\n"
+                f"{final_output}"
+            )
+
+        # -----------------------------------
+        # CASE 3: Multiple Rows + Multiple Columns
+        # Example:
+        # [('John', 50000, 'IT')]
+        # -----------------------------------
+        formatted_rows = []
+
+        for row in query_result:
+            row_text = " | ".join(
+                str(item) if item is not None else "NULL"
+                for item in row
+            )
+            formatted_rows.append(row_text)
+
+        final_output = "\n\n".join(formatted_rows)
+
+        return (
+            f"Here are the matching records:\n\n"
+            f"{final_output}"
+        )
 
     except Exception as e:
         return f"Response generation error: {str(e)}"

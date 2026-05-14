@@ -12,7 +12,7 @@ llm = ChatOpenAI(
 )
 
 
-def generate_human_response(
+def generate_business_response(
     question,
     sql_query,
     query_result

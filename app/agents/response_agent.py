@@ -12,22 +12,52 @@ llm = ChatOpenAI(
 )
 
 
-def generate_business_response(user_question, sql_result):
-    prompt = f"""
-You are a business response assistant.
+def generate_human_response(
+    question,
+    sql_query,
+    query_result
+):
+    """
+    Convert SQL result into safe business response
+    without hallucination
+    """
 
-Convert the SQL output into a professional,
-clear, human-friendly business answer.
+    try:
+        # Handle empty result
+        if not query_result:
+            return "No matching data found."
 
-User Question:
-{user_question}
+        # Extract first value safely
+        first_value = query_result[0][0]
 
-SQL Result:
-{sql_result}
+        if first_value is None:
+            return "No relevant data found."
 
-Return only final business answer.
-Do not explain technical details.
-"""
+        # Numeric result formatting
+        if isinstance(first_value, (int, float)):
 
-    response = llm.invoke(prompt)
-    return response.content.strip()
+            if "salary" in question.lower():
+                return (
+                    f"The result for your query is ₹{first_value:,}."
+                )
+
+            elif "count" in question.lower() or "how many" in question.lower():
+                return (
+                    f"The total count is {first_value}."
+                )
+
+            elif "sum" in question.lower() or "total" in question.lower():
+                return (
+                    f"The total value is {first_value:,}."
+                )
+
+            else:
+                return (
+                    f"The result is {first_value:,}."
+                )
+
+        # Text result formatting
+        return f"The result is: {first_value}"
+
+    except Exception as e:
+        return f"Response generation error: {str(e)}"
